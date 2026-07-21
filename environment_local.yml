@@ -1,0 +1,12 @@
+name: parking_lot
+channels:
+ - conda-forge
+dependencies:
+ - python=3.12
+ - pip:
+   - easyocr==1.7.2
+   - gradio==6.20
+   - numpy==1.26.4
+   - pillow==12.3
+   - pytesseract==0.3
+   - streamlit==1.59
