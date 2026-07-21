@@ -10,6 +10,11 @@ from datetime import timedelta
 #指定PyTesseract執行檔路徑
 if os.path.exists("/usr/bin/tesseract"):
     pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+#指定 tessdata 語系檔資料夾位置
+if os.path.exists("/usr/share/tesseract-ocr/5/tessdata"):
+    os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/5/tessdata"
+elif os.path.exists("/usr/share/tesseract-ocr/4.00/tessdata"):
+    os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/4.00/tessdata"
 
 #建立SQL資料庫
 parking_db = "parking.db"
