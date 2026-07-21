@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import sqlite3
 import pytesseract
@@ -5,6 +6,10 @@ from PIL import Image
 from datetime import datetime
 from datetime import timezone
 from datetime import timedelta
+
+#指定PyTesseract執行檔路徑
+if os.path.exists("/usr/bin/tesseract"):
+    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
 #建立SQL資料庫
 parking_db = "parking.db"
@@ -99,7 +104,7 @@ uploaded_img = st.file_uploader(
 #在UI建立2欄式版面
 if uploaded_img is not None:
     col1, col2 = st.columns([1, 1], gap="medium")
-    image = Image.open(uploaded_img)
+    image = Image.open(uploaded_img).convert("RGB")
     with col1:
         st.subheader("📷 上傳照片")
         st.image(image, caption="已上傳的照片", width="stretch")
