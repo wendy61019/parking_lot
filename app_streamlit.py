@@ -142,8 +142,6 @@ if uploaded_img is not None:
                             f"💵 You will be charged NT${data['charged_amount']:,}."
                         )
 
-                    st.rerun()
-
 #查詢場內車輛並即時顯示側邊欄
 st.sidebar.markdown("---")
 st.sidebar.subheader("🅿️ 目前場內車輛")
