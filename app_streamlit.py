@@ -122,7 +122,7 @@ if uploaded_img is not None:
             with st.spinner("辨識中..."):
                 preprocessed_image = preprocess_img_for_ocr(image)
                 custom_config = r"--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
-                image_text = pytesseract.image_to_string(image, lang="eng", config=custom_config)
+                image_text = pytesseract.image_to_string(preprocessed_image, lang="eng", config=custom_config)
                 car_plate = re.sub(r"[^A-Z0-9-]", "", image_text.upper().strip())
                 if not car_plate:
                     st.error("❌ 無法辨識車牌，請重新上傳清晰的照片！")
