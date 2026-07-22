@@ -134,7 +134,6 @@ if uploaded_img is not None:
         if st.button("進行車牌辨識與結算", type="primary"):
             with st.spinner("辨識中..."):
                 preprocessed_image = preprocess_img_for_ocr(image)
-                st.image(preprocessed_image, caption="預處理後的圖片 (二值化結果)", width=300)
                 custom_config = r"--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
                 image_text = pytesseract.image_to_string(preprocessed_image, lang="eng", config=custom_config)
                 car_plate = re.sub(r"[^A-Z0-9-]", "", image_text.upper().strip())
