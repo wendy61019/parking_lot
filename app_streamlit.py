@@ -87,10 +87,10 @@ def preprocess_img_for_ocr(pil_img):
 #轉灰階
     gray = pil_img.convert("L")
 #自動調整對比度
-    gray = ImageOps.autocontrast(gray)    
+    gray = ImageOps.autocontrast(gray, cutoff=2)
 #提高對比度
     enhancer = ImageEnhance.Contrast(gray)
-    enhanced_img = enhancer.enhance(2.0)
+    enhanced_img = enhancer.enhance(1.8)
     return enhanced_img
 
 #啟動資料庫初始化
