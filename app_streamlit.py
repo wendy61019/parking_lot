@@ -82,7 +82,7 @@ def process_parking(car_plate: str ,ntd_per_sec: int):
                 "charged_amount": charged_amount,
             }
 
-#影像預處理函式
+#建立影像預處理函式
 def preprocess_img_for_ocr(pil_img):
 #轉灰階
     gray = pil_img.convert("L")
