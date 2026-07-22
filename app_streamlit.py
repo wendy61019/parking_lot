@@ -1,11 +1,10 @@
 import streamlit as st
 import sqlite3
 import re
+import cv2
 import numpy as np
 import pytesseract
 from PIL import Image
-from PIL import ImageFilter
-from PIL import ImageOps
 from datetime import datetime
 from datetime import timezone
 from datetime import timedelta
@@ -83,28 +82,18 @@ def process_parking(car_plate: str ,ntd_per_sec: int):
                 "charged_amount": charged_amount,
             }
 
-#建立影像預處理函式
+#建立圖片預處理函式
 def preprocess_img_for_ocr(pil_img):
-#若圖片過大進行等比例縮小
-    max_width = 800
-    if pil_img.width > max_width:
-        ratio = max_width / float(pil_img.width)
-        new_height = int(float(pil_img.height) * ratio)
-        pil_img = pil_img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+#PIL轉換成OpenCV
+    img_np = np.array(pil_img)
+    img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
 #轉灰階
-    gray = pil_img.convert("L")
-#使用中值濾鏡去噪
-    denoised = gray.filter(ImageFilter.MedianFilter(size=3))
-#自動調整對比度
-    autocontrasted = ImageOps.autocontrast(denoised, cutoff=1)
-#轉黑白二值化
-    mean_brightness = np.mean(np.array(autocontrasted))
-    threshold = int(np.clip(mean_brightness, 80, 180))
-    binary_img = autocontrasted.point(lambda p: 255 if p > threshold else 0)
-#將圖片轉為白底黑字
-    if np.mean(np.array(binary_img)) < 128:
-        binary_img = ImageOps.invert(binary_img)
-    return binary_img
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+#雙邊濾波
+    filtered = cv2.bilateralFilter(gray, 11, 17, 17)
+#大津二值化
+    ret, thresh_img = cv2.threshold(filtered, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return thresh_img
 
 #啟動資料庫初始化
 create_parking_db()
@@ -134,26 +123,29 @@ if uploaded_img is not None:
         if st.button("進行車牌辨識與結算", type="primary"):
             with st.spinner("辨識中..."):
                 preprocessed_image = preprocess_img_for_ocr(image)
-                custom_config = r"--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+                custom_config = r"--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
                 image_text = pytesseract.image_to_string(preprocessed_image, lang="eng", config=custom_config)
                 car_plate = re.sub(r"[^A-Z0-9-]", "", image_text.upper().strip())
                 if not car_plate:
-                    st.error("❌ 無法辨識車牌，請重新上傳清晰的照片！")
+                    st.session_state["parking_result"] = {"status": "ERROR"}
                 else:
                     action_type, data = process_parking(car_plate, ntd_per_sec)
+                    st.session_state["parking_result"] = {
+                        "status": "SUCCESS",
+                        "action_type": action_type,
+                        "data": data
+                    }
                     if action_type == "ENTRY":
                         st.success(f"👋 **Welcome to the parking lot, {data['car_plate']}!**")
-                        st.info(
-                            f"🕒 Entry Time：{data['entry_time_str']}\n\n"
-                            f"💰 Parking Rates：Per Sec NT${data['ntd_per_sec']}"
-                        )
+                        m1, m2 = st.columns(2)
+                        m1.metric(label="🕒 Entry Time：", value=data['entry_time_str'])
+                        m2.metric(label="💰 Parking Rates：", value=f"{data['ntd_per_sec']} / sec.")
                     elif action_type == "EXIT":
                         st.balloons()
                         st.success(f"👋 **Bye bye bye, {data['car_plate']}!**")
-                        st.warning(
-                            f"⏱️ Your vehicle stayed： {data['seconds_elapsed']} secs.\n\n"
-                            f"💵 You will be charged NT${data['charged_amount']:,}."
-                        )
+                        m1, m2 = st.columns(2)
+                        m1.metric(label="⏱️ Your vehicle stayed：", value=f"{data['seconds_elapsed']} secs.")
+                        m2.metric(label="💵 You will be charged NT$", value=f"{data['charged_amount']:,}.")
 
 #查詢場內車輛並即時顯示側邊欄
 st.sidebar.markdown("---")
