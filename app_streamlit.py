@@ -4,6 +4,7 @@ import re
 import pytesseract
 from PIL import Image
 from PIL import ImageEnhance
+from PIL import ImageFilter
 from PIL import ImageOps
 from datetime import datetime
 from datetime import timezone
@@ -88,8 +89,10 @@ def preprocess_img_for_ocr(pil_img):
     gray = pil_img.convert("L")
 #自動調整對比度
     gray = ImageOps.autocontrast(gray, cutoff=2)
+#套用銳利化濾鏡
+    sharpened_img = gray.filter(ImageFilter.SHARPEN)
 #提高對比度
-    enhancer = ImageEnhance.Contrast(gray)
+    enhancer = ImageEnhance.Contrast(sharpened_img)
     enhanced_img = enhancer.enhance(1.8)
     return enhanced_img
 
