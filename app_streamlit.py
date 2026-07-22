@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 import sqlite3
 import pytesseract
@@ -6,15 +5,6 @@ from PIL import Image
 from datetime import datetime
 from datetime import timezone
 from datetime import timedelta
-
-#指定PyTesseract執行檔路徑
-if os.path.exists("/usr/bin/tesseract"):
-    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-#指定 tessdata 語系檔資料夾位置
-if os.path.exists("/usr/share/tesseract-ocr/5/tessdata"):
-    os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/5/tessdata"
-elif os.path.exists("/usr/share/tesseract-ocr/4.00/tessdata"):
-    os.environ["TESSDATA_PREFIX"] = "/usr/share/tesseract-ocr/4.00/tessdata"
 
 #建立SQL資料庫
 parking_db = "parking.db"
@@ -116,7 +106,7 @@ if uploaded_img is not None:
     with col2:
         if st.button("進行車牌辨識與結算", type="primary"):
             with st.spinner("辨識中..."):
-                image_text = pytesseract.image_to_string(image, lang="en", config="--psm 7")
+                image_text = pytesseract.image_to_string(image, lang="eng", config="--psm 7")
                 car_plate = image_text.strip()
                 if not car_plate:
                     st.error("❌ 無法辨識車牌，請重新上傳清晰的照片！")

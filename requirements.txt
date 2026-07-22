@@ -1,5 +1,5 @@
 easyocr==1.7.2
 numpy==1.26.4
-pillow
-pytesseract
-streamlit
+pillow==12.3
+pytesseract==0.3
+streamlit==1.59

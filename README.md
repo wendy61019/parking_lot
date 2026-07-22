@@ -18,4 +18,4 @@
 
  - 將 `data/` 資料夾中的 `car_plate_1.jpg`、`car_plate_2.jpg` 與 `car_plate_3.jpg` 放置於專案資料夾的 `data/` 資料夾中。
  - 啟動環境並執行 `python app.py` 並前往 `http://127.0.0.1:7860` 瀏覽成品。
- - 啟動環境並執⾏ `streamlit run app_streamlit.py` 並前往 http://192.168.1.103:8501 瀏覽成品。
+ - 啟動環境並執⾏ `streamlit run app_streamlit.py` 並前往 `http://192.168.1.103:8501` 瀏覽成品。
