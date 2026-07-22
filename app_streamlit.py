@@ -1,7 +1,10 @@
 import streamlit as st
 import sqlite3
+import re
 import pytesseract
 from PIL import Image
+from PIL import ImageEnhance
+from PIL import ImageOps
 from datetime import datetime
 from datetime import timezone
 from datetime import timedelta
@@ -79,6 +82,17 @@ def process_parking(car_plate: str ,ntd_per_sec: int):
                 "charged_amount": charged_amount,
             }
 
+#影像預處理函式
+def preprocess_img_for_ocr(pil_img):
+#轉灰階
+    gray = pil_img.convert("L")
+#自動調整對比度
+    gray = ImageOps.autocontrast(gray)    
+#提高對比度
+    enhancer = ImageEnhance.Contrast(gray)
+    enhanced_img = enhancer.enhance(2.0)
+    return enhanced_img
+
 #啟動資料庫初始化
 create_parking_db()
 
@@ -106,12 +120,13 @@ if uploaded_img is not None:
     with col2:
         if st.button("進行車牌辨識與結算", type="primary"):
             with st.spinner("辨識中..."):
-                image_text = pytesseract.image_to_string(image, lang="eng", config="--psm 7")
-                car_plate = image_text.strip()
+                preprocessed_image = preprocess_img_for_ocr(image)
+                custom_config = r"--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+                image_text = pytesseract.image_to_string(image, lang="eng", config=custom_config)
+                car_plate = re.sub(r"[^A-Z0-9-]", "", image_text.upper().strip())
                 if not car_plate:
                     st.error("❌ 無法辨識車牌，請重新上傳清晰的照片！")
                 else:
-                    car_plate = car_plate.split("\n")[0].strip()
                     action_type, data = process_parking(car_plate, ntd_per_sec)
                     if action_type == "ENTRY":
                         st.success(f"👋 **Welcome to the parking lot, {data['car_plate']}!**")
