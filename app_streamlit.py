@@ -1,9 +1,9 @@
 import streamlit as st
 import sqlite3
 import re
+import numpy as np
 import pytesseract
 from PIL import Image
-from PIL import ImageEnhance
 from PIL import ImageFilter
 from PIL import ImageOps
 from datetime import datetime
@@ -85,16 +85,26 @@ def process_parking(car_plate: str ,ntd_per_sec: int):
 
 #建立影像預處理函式
 def preprocess_img_for_ocr(pil_img):
+#若圖片過大進行等比例縮小
+    max_width = 800
+    if pil_img.width > max_width:
+        ratio = max_width / float(pil_img.width)
+        new_height = int(float(pil_img.height) * ratio)
+        pil_img = pil_img.resize((max_width, new_height), Image.Resampling.LANCZOS)
 #轉灰階
     gray = pil_img.convert("L")
+#使用中值濾鏡去噪
+    denoised = gray.filter(ImageFilter.MedianFilter(size=3))
 #自動調整對比度
-    gray = ImageOps.autocontrast(gray, cutoff=2)
-#套用銳利化濾鏡
-    sharpened_img = gray.filter(ImageFilter.SHARPEN)
-#提高對比度
-    enhancer = ImageEnhance.Contrast(sharpened_img)
-    enhanced_img = enhancer.enhance(1.8)
-    return enhanced_img
+    autocontrasted = ImageOps.autocontrast(denoised, cutoff=1)
+#轉黑白二值化
+    mean_brightness = np.mean(np.array(autocontrasted))
+    threshold = int(np.clip(mean_brightness, 80, 180))
+    binary_img = autocontrasted.point(lambda p: 255 if p > threshold else 0)
+#將圖片轉為白底黑字
+    if np.mean(np.array(binary_img)) < 128:
+        binary_img = ImageOps.invert(binary_img)
+    return binary_img
 
 #啟動資料庫初始化
 create_parking_db()
