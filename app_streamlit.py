@@ -167,7 +167,8 @@ def main():
             #顯示原始照片
             st.image(uploaded_file, caption="已上傳原始照片")
             #顯示預處理照片
-            st.expander(processed_img, caption="OpenCV預處理結果")
+            st.expander("🛠️ 點擊檢視 OpenCV 影像預處理結果 (Debug)")
+            st.image(st.session_state["processed_img"])
             #按鈕觸發辨識
             if st.button("🚀 進行車牌辨識", type="primary"):
                 car_plate = extract_plate_text(processed_img)
