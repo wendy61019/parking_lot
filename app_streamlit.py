@@ -93,8 +93,18 @@ def extract_plate_text(processed_img: np.ndarray) -> str:
     cropped_img = processed_img[margin_h : h - margin_h, margin_w : w - margin_w]
     custom_config = r"--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     raw_text = pytesseract.image_to_string(cropped_img, config=custom_config)
-#清理文字：僅保留英數字，轉大寫
+#清理文字：保留英數字 轉大寫
     clean_text = re.sub(r"[^A-Z0-9]", "", raw_text.upper())
+    plate_patterns = [
+        r"[A-Z]{3}\d{4}",
+        r"[A-Z]{2}\d{4}",
+        r"\d{4}[A-Z]{2}",
+        r"[A-Z]{3}\d{3}",
+    ]
+    for pattern in plate_patterns:
+        matched = re.search(pattern, clean_text)
+        if matched:
+            return matched.group(0)
     return clean_text
 
 # ==========================================
