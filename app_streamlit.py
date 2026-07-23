@@ -152,7 +152,7 @@ def main():
                 if not car_plate or len(car_plate) < 3:
                     st.error("❌ 無法辨識出有效車牌，請上傳更清晰的照片！")
                 else:
-                    result = process_parking_event(car_plate, rate_per_sec=2)
+                    result = process_parking_event(car_plate, rate_per_sec)
                     st.markdown(result["message"])
     with col2:
         st.subheader("📋 目前場內車輛清單")
