@@ -91,7 +91,8 @@ def extract_plate_text(processed_img: np.ndarray) -> str:
 # ==========================================
 def process_parking_event(car_plate: str, rate_per_sec: int):
 # 取得當前時間 (UTC+8)
-    now = datetime.now(timezone.utc) + timedelta(hours=8)
+    tz_utc8 = timezone(timedelta(hours=8))
+    now = datetime.now(tz_utc8).replace(tzinfo=None)
     now_str = now.strftime("%Y-%m-%d %H:%M:%S")
     entry_time_str = get_parked_vehicle(car_plate)
     if entry_time_str is None:
