@@ -80,7 +80,7 @@ def preprocess_image(image_bytes: bytes) -> np.ndarray:
 def extract_plate_text(processed_img: np.ndarray) -> str:
     if np.mean(processed_img) < 127:
         processed_img = cv2.bitwise_not(processed_img)
-    custom_config = r"--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    custom_config = r"--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     raw_text = pytesseract.image_to_string(processed_img, config=custom_config)
 #清理文字：僅保留英數字，轉大寫
     clean_text = re.sub(r"[^A-Z0-9]", "", raw_text.upper())
@@ -141,31 +141,19 @@ def main():
             "請上傳車牌照片", type=["jpg", "jpeg", "png"]
         )
         if uploaded_file is not None:
+            image_bytes = uploaded_file.read()
+            processed_img = preprocess_image(image_bytes)
             #顯示原始照片
-            st.image(uploaded_file, caption="上傳的原始圖片", width="stretch")
+            st.image(processed_img, caption="OpenCV預處理結果", width="stretch")
             #按鈕觸發辨識
-            if st.button("🚀 進行車牌辨識與登記", type="primary"):
-                try:
-                    #步驟A：預處理圖片
-                    image_bytes = uploaded_file.read()
-                    processed_img = preprocess_image(image_bytes)
-                    #顯示預處理結果
-                    with st.expander("🔍 檢視 OpenCV 預處理圖像"):
-                        st.image(processed_img, caption="二值化處理解析")
-                    #步驟B：OCR辨識
-                    car_plate = extract_plate_text(processed_img)
-                    if car_plate and len(car_plate) >= 4:
-                        st.success(f"成功辨識車牌：**{car_plate}**")
-                    else:
-                        st.error("無法辨識出有效車牌，請上傳更清晰的照片！")
-                        
-                    #步驟C：執行進出場邏輯
-                    result = process_parking_event(car_plate, rate_per_sec)
-                    st.info(result["message"])
-
-                except Exception as e:
-                    st.error(f"系統發生錯誤：{e}")
-
+            if st.button("🚀 進行車牌辨識", type="primary"):
+                car_plate = extract_plate_text(processed_img)
+                #st.write(f"🔍 OCR 抓到的字串：'{car_plate}'")
+                if not car_plate or len(car_plate) < 3:
+                    st.error("❌ 無法辨識出有效車牌，請上傳更清晰的照片！")
+                else:
+                    result = process_parking_event(car_plate, rate_per_sec=2)
+                    st.markdown(result["message"])
     with col2:
         st.subheader("📋 目前場內車輛清單")
         if st.button("🔄 刷新清單"):
