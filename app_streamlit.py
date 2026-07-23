@@ -144,8 +144,8 @@ def main():
             if st.button("🚀 進行車牌辨識與登記", type="primary"):
                 try:
                     #步驟A：預處理圖片
-                    bytes_data = uploaded_file.getvalue()
-                    processed_img = preprocess_image(bytes_data)
+                    image_bytes = uploaded_file.read()
+                    processed_img = preprocess_image(image_bytes)
                     #顯示預處理結果
                     with st.expander("🔍 檢視 OpenCV 預處理圖像"):
                         st.image(processed_img, caption="二值化處理解析")
