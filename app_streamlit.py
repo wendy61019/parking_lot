@@ -78,6 +78,8 @@ def preprocess_image(image_bytes: bytes) -> np.ndarray:
 
 #使用 Tesseract 進行 OCR 辨識
 def extract_plate_text(processed_img: np.ndarray) -> str:
+    if np.mean(processed_img) < 127:
+        processed_img = cv2.bitwise_not(processed_img)
     custom_config = r"--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     raw_text = pytesseract.image_to_string(processed_img, config=custom_config)
 #清理文字：僅保留英數字，轉大寫
@@ -151,14 +153,14 @@ def main():
                         st.image(processed_img, caption="二值化處理解析")
                     #步驟B：OCR辨識
                     car_plate = extract_plate_text(processed_img)
-                    if not car_plate:
-                        st.error("❌ 無法辨識出有效車牌，請上傳更清晰的照片！")
+                    if car_plate and len(car_plate) >= 4:
+                        st.success(f"成功辨識車牌：**{car_plate}**")
                     else:
-                        st.success(f"🔍 辨識到的車牌：**{car_plate}**")
+                        st.error("無法辨識出有效車牌，請上傳更清晰的照片！")
                         
-                        #步驟C：執行進出場邏輯
-                        result = process_parking_event(car_plate, rate_per_sec)
-                        st.info(result["message"])
+                    #步驟C：執行進出場邏輯
+                    result = process_parking_event(car_plate, rate_per_sec)
+                    st.info(result["message"])
 
                 except Exception as e:
                     st.error(f"系統發生錯誤：{e}")
