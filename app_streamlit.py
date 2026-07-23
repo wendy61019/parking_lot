@@ -91,7 +91,7 @@ def extract_plate_text(processed_img: np.ndarray) -> str:
         processed_img = cv2.bitwise_not(processed_img)
     margin_h, margin_w = int(h * 0.08), int(w * 0.05)
     cropped_img = processed_img[margin_h : h - margin_h, margin_w : w - margin_w]
-    custom_config = r"--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    custom_config = r"--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789"
     raw_text = pytesseract.image_to_string(cropped_img, config=custom_config)
     match = re.search(r"\d{3,4}", raw_text)
     numbers_only = match.group(0) if match else ""
@@ -155,19 +155,35 @@ def main():
             image_bytes = uploaded_file.read()
             processed_img = preprocess_image(image_bytes)
             #顯示原始照片
-            st.image(uploaded_file, caption="已上傳原始照片")
+            st.image(image_bytes, caption="已上傳原始照片")
             #顯示預處理照片
             with st.expander("🛠️ 點擊檢視 OpenCV 影像預處理結果 (Debug)"):
                 st.image(processed_img, channels="GRAY")
             #按鈕觸發辨識
             if st.button("🚀 進行車牌辨識", type="primary"):
-                car_plate = extract_plate_text(processed_img)
-                st.write(f"🔍 OCR 抓到的字串：'{car_plate}'(長度: {len(car_plate)})")
-                if not car_plate or len(car_plate) < 4:
-                    st.error("❌ 無法辨識出有效車牌，請上傳更清晰的照片！")
-                else:
-                    result = process_parking_event(car_plate, rate_per_sec)
-                    st.markdown(result["message"])
+                detected_plate = extract_plate_text(processed_img)
+                st.session_state["detected_plate"] = detected_plate
+
+            if "detected_plate" in st.session_state:
+                st.write("---")
+                final_plate = st.text_input(
+                    "請確認車牌數字（辨識有誤可直接修改）：",
+                    value=st.session_state["detected_plate"],
+                    max_chars=6,
+                )
+                if st.button("✅ 確認登記進/出場"):
+                    if not final_plate or len(final_plate) < 3:
+                        st.error("❌ 車牌數字過短或無效，請確認後重新輸入！")
+                    else:
+                        result = process_parking_event(
+                            final_plate, rate_per_sec
+                        )
+                        if result["status"] == "ENTRY":
+                            st.success(result["message"])
+                        else:
+                            st.info(result["message"])
+                        #處理完重置
+                        del st.session_state["detected_plate"]
     with col2:
         st.subheader("📋 目前場內車輛清單")
         if st.button("🔄 刷新清單"):
