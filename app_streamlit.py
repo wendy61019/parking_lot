@@ -154,7 +154,7 @@ def main():
             if st.button("🚀 進行車牌辨識", type="primary"):
                 car_plate = extract_plate_text(processed_img)
                 #st.write(f"🔍 OCR 抓到的字串：'{car_plate}'")
-                if not car_plate or len(car_plate) < 3:
+                if not car_plate or len(car_plate) < 4:
                     st.error("❌ 無法辨識出有效車牌，請上傳更清晰的照片！")
                 else:
                     result = process_parking_event(car_plate, rate_per_sec)
