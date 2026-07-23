@@ -78,12 +78,20 @@ def preprocess_image(image_bytes: bytes) -> np.ndarray:
 
 #使用 Tesseract 進行 OCR 辨識
 def extract_plate_text(processed_img: np.ndarray) -> str:
+    h, w = processed_img.shape[:2]
+    if w < 300:
+        scale = 300 / w
+        processed_img = cv2.resize(
+            processed_img,
+            (int(w * scale), int(h * scale)),
+            interpolation=cv2.INTER_CUBIC,
+        )
+        h, w = processed_img.shape[:2]
     if np.mean(processed_img) < 127:
         processed_img = cv2.bitwise_not(processed_img)
-    h, w = processed_img.shape[:2]
     margin_h, margin_w = int(h * 0.08), int(w * 0.05)
     cropped_img = processed_img[margin_h : h - margin_h, margin_w : w - margin_w]
-    custom_config = r"--oem 3 --psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    custom_config = r"--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     raw_text = pytesseract.image_to_string(cropped_img, config=custom_config)
 #清理文字：僅保留英數字，轉大寫
     clean_text = re.sub(r"[^A-Z0-9]", "", raw_text.upper())
@@ -153,7 +161,8 @@ def main():
             #按鈕觸發辨識
             if st.button("🚀 進行車牌辨識", type="primary"):
                 car_plate = extract_plate_text(processed_img)
-                #st.write(f"🔍 OCR 抓到的字串：'{car_plate}'")
+                st.write(f"🔍 OCR 抓到的字串：'{car_plate}'(長度: {len(car_plate)})")
+                st.session_state["detected_plate"] = car_plate
                 if not car_plate or len(car_plate) < 4:
                     st.error("❌ 無法辨識出有效車牌，請上傳更清晰的照片！")
                 else:
