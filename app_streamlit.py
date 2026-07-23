@@ -167,13 +167,12 @@ def main():
             #顯示原始照片
             st.image(uploaded_file, caption="已上傳原始照片")
             #顯示預處理照片
-            st.expander("🛠️ 點擊檢視 OpenCV 影像預處理結果 (Debug)")
-            st.image(st.session_state["processed_img"])
+            with st.expander("🛠️ 點擊檢視 OpenCV 影像預處理結果 (Debug)"):
+                st.image(processed_img, channels="GRAY")
             #按鈕觸發辨識
             if st.button("🚀 進行車牌辨識", type="primary"):
                 car_plate = extract_plate_text(processed_img)
                 st.write(f"🔍 OCR 抓到的字串：'{car_plate}'(長度: {len(car_plate)})")
-                st.session_state["detected_plate"] = car_plate
                 if not car_plate or len(car_plate) < 4:
                     st.error("❌ 無法辨識出有效車牌，請上傳更清晰的照片！")
                 else:
