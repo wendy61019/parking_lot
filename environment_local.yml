@@ -7,6 +7,6 @@ dependencies:
    - easyocr==1.7.2
    - gradio==6.20
    - numpy==1.26.4
-   - pillow==12.3
+   - opencv-python==5.0
    - pytesseract==0.3
    - streamlit==1.59

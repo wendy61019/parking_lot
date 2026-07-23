@@ -1,163 +1,187 @@
-import streamlit as st
 import sqlite3
 import re
 import cv2
 import numpy as np
 import pytesseract
-from PIL import Image
+import streamlit as st
 from datetime import datetime
-from datetime import timezone
 from datetime import timedelta
+from datetime import timezone
 
-#建立SQL資料庫
-parking_db = "parking.db"
+# ==========================================
+# 建立資料庫模組(Database Management)
+# ==========================================
+parking_db = "parking_lot.db"
 
-#建立當前時間函式
-TIMEZONE_TW = timezone(timedelta(hours=8))
-def get_current_time():
-    return datetime.now(TIMEZONE_TW)
-
-@st.cache_resource
-#初始化資料庫，建立車輛紀錄表
-#建立一個資料表 欄位有：車牌(主鍵)與進場時間
-def create_parking_db():
+#初始化 SQLite 資料庫與資料表
+def init_db():
     with sqlite3.connect(parking_db) as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
-            CREATE TABLE IF NOT EXISTS parking_records(
+            CREATE TABLE IF NOT EXISTS records (
                 car_plate TEXT PRIMARY KEY,
                 entry_time TEXT NOT NULL
             )
             """
-            )
+        )
         conn.commit()
 
-#取得目前所有場內車輛
-def get_all_parked_vehicles():
+#查詢車輛進場紀錄
+def get_parked_vehicle(car_plate: str):
     with sqlite3.connect(parking_db) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT car_plate, entry_time FROM parking_records ORDER BY entry_time DESC"
-        )
-        return cursor.fetchall()
-
-#車輛辨識與進出場判讀
-def process_parking(car_plate: str ,ntd_per_sec: int):
-    now = get_current_time()
-    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-    with sqlite3.connect(parking_db) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT entry_time FROM parking_records WHERE car_plate = ?",
-            (car_plate,),
+            "SELECT entry_time FROM records WHERE car_plate = ?", (car_plate,)
         )
         result = cursor.fetchone()
-#新增車輛進場紀錄
-        if result is None:
-            cursor.execute(
-                "INSERT OR REPLACE INTO parking_records (car_plate, entry_time) VALUES (?, ?)",
-            (car_plate, now_str)
-            )
-            conn.commit()
-            return "ENTRY", {
-                "car_plate": car_plate,
-                "entry_time_str": now_str,
-                "ntd_per_sec": ntd_per_sec,
-            }
-        else:
-            entry_time_str = result[0]
-            entry_time = datetime.strptime(entry_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=TIMEZONE_TW)
-            time_elapsed = now - entry_time
-            seconds_elapsed = max(0, int(time_elapsed.total_seconds()))
-            charged_amount = seconds_elapsed * ntd_per_sec
-##刪除車輛出場紀錄
-            cursor.execute(
-                "DELETE FROM parking_records WHERE car_plate = ?", (car_plate,)
-            )
-            conn.commit()
-            return "EXIT", {
-                "car_plate": car_plate,
-                "seconds_elapsed": seconds_elapsed,
-                "charged_amount": charged_amount,
-            }
+        return result[0] if result else None
 
-#建立圖片預處理函式
-def preprocess_img_for_ocr(pil_img):
-#PIL轉換成OpenCV
-    img_np = np.array(pil_img)
-    img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+#新增進場車輛
+def add_parked_vehicle(car_plate: str, entry_time_str: str):
+    with sqlite3.connect(parking_db) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO records (car_plate, entry_time) VALUES (?, ?)",
+            (car_plate, entry_time_str),
+        )
+        conn.commit()
+
+#刪除出場車輛紀錄
+def remove_parked_vehicle(car_plate: str):
+    with sqlite3.connect(parking_db) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM records WHERE car_plate = ?", (car_plate,)
+        )
+        conn.commit()
+
+# ==========================================
+# 影像預處理與 OCR 模組(Vision & OCR)
+# ==========================================
+#使用 OpenCV 進行影像預處理
+def preprocess_image(image_bytes: bytes) -> np.ndarray:
+#將上傳的 bytes 轉為 OpenCV 格式(BGR)
+    file_bytes = np.asarray(bytearray(image_bytes), dtype=uint8)
+    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("Unable to read image file.")
 #轉灰階
-    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-#雙邊濾波
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#雙邊濾波（去除雜訊但保留邊緣）
     filtered = cv2.bilateralFilter(gray, 11, 17, 17)
-#大津二值化
-    ret, thresh_img = cv2.threshold(filtered, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return thresh_img
+#Otsu 二值化
+    ret, thresh = cv2.threshold(
+        filtered, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+    )
+    return thresh
 
-#啟動資料庫初始化
-create_parking_db()
+#使用 Tesseract 進行 OCR 辨識
+def extract_plate_text(processed_img: np.ndarray) -> str:
+    custom_config = r"--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    raw_text = pytesseract.image_to_string(processed_img, config=custom_config)
+#清理文字：僅保留英數字，轉大寫
+    clean_text = re.sub(r"[^A-Z0-9]", "", raw_text.upper())
+    return clean_text
 
-#設定網頁標題與排版
-st.set_page_config(page_title="小小停車場", page_icon="🚗", layout="wide")
-st.title("🚗 小小停車場")
+# ==========================================
+# 車輛進出場邏輯與費用計算(Business Logic)
+# ==========================================
+def process_parking_event(car_plate: str, rate_per_sec: int):
+# 取得當前時間 (UTC+8)
+    now = datetime.now(timezone.utc) + timedelta(hours=8)
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    entry_time_str = get_parked_vehicle(car_plate)
+    if entry_time_str is None:
+#進場流程
+        add_parked_vehicle(car_plate, now_str)
+        return {
+            "status": "ENTRY",
+            "message": f"🚗 【Entry Success!】\n\n- Car Plate：`{car_plate}`\n- Entry Time：`{now_str}`\n- Rates：`NT${rate_per_sec} / sec.`",
+        }
+    else:
+#出場流程
+        entry_time = datetime.strptime(entry_time_str, "%Y-%m-%d %H:%M:%S")
+        time_elapsed = now - entry_time
+        seconds_elapsed = max(int(time_elapsed.total_seconds()), 1)
+        charge_amount = seconds_elapsed * rate_per_sec
+#離場時移除紀錄
+        remove_parked_vehicle(car_plate)
+        return {
+            "status": "EXIT",
+            "message": f"💳 【EXIT SUCCESS!】\n\n- Car Plate：`{car_plate}`\n- Exit Time：`{now_str}`\n- Time Parked：`{seconds_elapsed} sec.`\n- Amount Due：`NT${charge_amount:,}`.",
+        }
 
+# ==========================================
+# Streamlit UI 介面
+# ==========================================
+#建立streamlit
+def main():
+    st.set_page_config(
+        page_title="小小停車場", page_icon="🅿️", layout="wide"
+    )
+
+#初始化資料庫
+    init_db()
+
+    st.title("🅿️ 小小停車場")
 #建立側邊欄
-st.sidebar.header("設定參數")
-ntd_per_sec = st.sidebar.number_input(
-    "每秒收費 (NTD)", min_value=1, value=1, step=1
-)
-uploaded_img = st.file_uploader(
-    "請上傳車牌照片", type=["jpg", "jpeg", "png"]
-)
-
-#車輛辨識與映射到UI
-#在UI建立2欄式版面
-if uploaded_img is not None:
-    col1, col2 = st.columns([1, 1], gap="medium")
-    image = Image.open(uploaded_img).convert("RGB")
+    st.sidebar.header("⚙️ Parking System Settings")
+    rate_per_sec = st.sidebar.slider(
+        "Rate Per Sec (NTD)", min_value=1, max_value=200, value=1
+    )
+#建立2欄頁面
+    col1, col2 = st.columns([1, 1])
     with col1:
-        st.subheader("📷 上傳照片")
-        st.image(image, caption="已上傳的照片", width="stretch")
+        st.subheader("📸 車牌辨識區")
+        uploaded_file = st.file_uploader(
+            "請上傳車牌照片", type=["jpg", "jpeg", "png"]
+        )
+        if uploaded_file is not None:
+            #顯示原始照片
+            st.image(uploaded_file, caption="上傳的原始圖片", use_container_width=True)
+            #按鈕觸發辨識
+            if st.button("🚀 進行車牌辨識與登記", type="primary"):
+                try:
+                    #步驟A：預處理圖片
+                    bytes_data = uploaded_file.getvalue()
+                    processed_img = preprocess_image(bytes_data)
+                    #顯示預處理結果
+                    with st.expander("🔍 檢視 OpenCV 預處理圖像"):
+                        st.image(processed_img, caption="二值化處理解析")
+                    #步驟B：OCR辨識
+                    car_plate = extract_plate_text(processed_img)
+                    if not car_plate:
+                        st.error("❌ 無法辨識出有效車牌，請上傳更清晰的照片！")
+                    else:
+                        st.success(f"🔍 辨識到的車牌：**{car_plate}**")
+                        
+                        #步驟C：執行進出場邏輯
+                        result = process_parking_event(car_plate, rate_per_sec)
+                        st.info(result["message"])
+
+                except Exception as e:
+                    st.error(f"系統發生錯誤：{e}")
+
     with col2:
-        if st.button("進行車牌辨識與結算", type="primary"):
-            with st.spinner("辨識中..."):
-                preprocessed_image = preprocess_img_for_ocr(image)
-                custom_config = r"--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
-                image_text = pytesseract.image_to_string(preprocessed_image, lang="eng", config=custom_config)
-                car_plate = re.sub(r"[^A-Z0-9-]", "", image_text.upper().strip())
-                if not car_plate:
-                    st.session_state["parking_result"] = {"status": "ERROR"}
-                else:
-                    action_type, data = process_parking(car_plate, ntd_per_sec)
-                    st.session_state["parking_result"] = {
-                        "status": "SUCCESS",
-                        "action_type": action_type,
-                        "data": data
-                    }
-                    if action_type == "ENTRY":
-                        st.success(f"👋 **Welcome to the parking lot, {data['car_plate']}!**")
-                        m1, m2 = st.columns(2)
-                        m1.metric(label="🕒 Entry Time：", value=data['entry_time_str'])
-                        m2.metric(label="💰 Parking Rates：", value=f"{data['ntd_per_sec']} / sec.")
-                    elif action_type == "EXIT":
-                        st.balloons()
-                        st.success(f"👋 **Bye bye bye, {data['car_plate']}!**")
-                        m1, m2 = st.columns(2)
-                        m1.metric(label="⏱️ Your vehicle stayed：", value=f"{data['seconds_elapsed']} secs.")
-                        m2.metric(label="💵 You will be charged NT$", value=f"{data['charged_amount']:,}.")
+        st.subheader("📋 目前場內車輛清單")
+        if st.button("🔄 刷新清單"):
+            st.rerun()
 
-#查詢場內車輛並即時顯示側邊欄
-st.sidebar.markdown("---")
-st.sidebar.subheader("🅿️ 目前場內車輛")
+#讀取並顯示SQLite內的資料
+        with sqlite3.connect(parking_db) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT car_plate, entry_time FROM records")
+            rows = cursor.fetchall()
+            if rows:
+                st.table(
+                    [
+                        {"Car Plate": row[0], "Entry Time": row[1]}
+                        for row in rows
+                    ]
+                )
+            else:
+                st.write("Parking lot is empty.")
 
-parked_list = get_all_parked_vehicles()
-if parked_list:
-    now = get_current_time()
-    for car_plate, entry_str in parked_list:
-        entry_dt = datetime.strptime(entry_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=TIMEZONE_TW)
-        stayed_secs = max(0, int((now - entry_dt).total_seconds()))
-        st.sidebar.markdown(f"🚘 {car_plate} \n"
-                        f"🕒 Entry: `{entry_str[11:]}` (For {stayed_secs} secs.)")
-else:
-    st.sidebar.caption("No vehicles in the parking lot.")
+if __name__ == "__main__":
+    main()
