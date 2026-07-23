@@ -80,7 +80,7 @@ def preprocess_image(image_bytes: bytes) -> np.ndarray:
 def extract_plate_text(processed_img: np.ndarray) -> str:
     if np.mean(processed_img) < 127:
         processed_img = cv2.bitwise_not(processed_img)
-    custom_config = r"--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    custom_config = r"--psm 7 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     raw_text = pytesseract.image_to_string(processed_img, config=custom_config)
 #清理文字：僅保留英數字，轉大寫
     clean_text = re.sub(r"[^A-Z0-9]", "", raw_text.upper())
@@ -144,6 +144,8 @@ def main():
             image_bytes = uploaded_file.read()
             processed_img = preprocess_image(image_bytes)
             #顯示原始照片
+            st.image(uploaded_file, caption="已上傳原始照片", width="stretch")
+            #顯示預處理照片
             st.image(processed_img, caption="OpenCV預處理結果", width="stretch")
             #按鈕觸發辨識
             if st.button("🚀 進行車牌辨識", type="primary"):
