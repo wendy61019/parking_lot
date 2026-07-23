@@ -62,7 +62,7 @@ def remove_parked_vehicle(car_plate: str):
 #使用 OpenCV 進行影像預處理
 def preprocess_image(image_bytes: bytes) -> np.ndarray:
 #將上傳的 bytes 轉為 OpenCV 格式(BGR)
-    file_bytes = np.asarray(bytearray(image_bytes), dtype=uint8)
+    file_bytes = np.asarray(bytearray(image_bytes), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Unable to read image file.")
@@ -139,7 +139,7 @@ def main():
         )
         if uploaded_file is not None:
             #顯示原始照片
-            st.image(uploaded_file, caption="上傳的原始圖片", use_container_width=True)
+            st.image(uploaded_file, caption="上傳的原始圖片", width="stretch")
             #按鈕觸發辨識
             if st.button("🚀 進行車牌辨識與登記", type="primary"):
                 try:
