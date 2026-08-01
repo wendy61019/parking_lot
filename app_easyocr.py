@@ -1,4 +1,5 @@
 import sqlite3
+import re
 import easyocr
 import numpy as np
 import streamlit as st
@@ -80,6 +81,24 @@ def get_all_parked_vehicles():
     conn.close()
     return rows
 
+#建立車牌格式校正函數
+def corrected_car_plate(car_plate: str):
+#篩選數字與英文字並轉大寫
+  plate = re.sub(r"[^A-Z0-9]", "", car_plate.upper())
+
+#以新式 7 碼車牌為例進行格式校正
+  if len(plate) != 7:
+    return car_plate
+
+#建立相似對照字典
+  num_to_char = {"0": "O", "1": "I"}
+  char_to_num = {"O": "0", "I": "1", "B": "8", "S": "5", "Z": "2", "D": "0"}
+
+#處理前 3 碼（數字轉英文）
+  front = "".join(num_to_char.get(char, char) for char in plate[:3])
+#處理後 4 碼（英文轉數字）
+  back = "".join(char_to_num.get(char, char) for char in plate[3:])
+  return f"{front}-{back}"
 
 #建立側邊欄控制與參數
 st.sidebar.header("⚙️ 費率與設定")
@@ -106,7 +125,8 @@ if uploaded_file is not None:
     if not results:
         st.error("❌ 無法辨識車牌，請上傳更清晰的照片。")
     else:
-        car_plate = results[0]
+        clean_text = "".join(results)
+        car_plate = corrected_car_plate(clean_text)
         entry_time = datetime.now(timezone.utc) + timedelta(hours=8)
         entry_time_str = entry_time.strftime("%Y-%m-%d %H:%M:%S")
         existing_entry_time_str = get_entry_time(car_plate)
